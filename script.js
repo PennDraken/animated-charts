@@ -7,25 +7,21 @@ const yTextArea = document.getElementById("plot-y-text-area");
 const unitTextInput = document.querySelector("input");
 const targetAmountInput = document.getElementById("target-amount-input");
 
-
 const plotButton = document.getElementById("plot-button");
-
 const chartCanvas = document.getElementById("chart-canvas");
-
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 plotButton.addEventListener("click", async () => {
-    animate_chart();
+    await record_chart_animation(); // <- Use the new wrapped function
 });
 
 async function animate_chart() {
-    // Save input data to local browser storage
     const unitText = unitTextInput.value;
     const targetAmount = targetAmountInput.value;
-    // Parse yValues
+
     const yValues = yTextArea.value
         .split("\n")
         .map(line => line.trim())
@@ -39,8 +35,6 @@ async function animate_chart() {
         .map(Number)
         .filter(n => !isNaN(n));
 
-    // Generate xValues (e.g., 100, 110, 120, ...)
-    // Animate plotting one point at a time
     const totalTime = 3; // seconds
     const fps = 30;
     for (let t = 0; t <= 1; t += 1 / (totalTime * fps)) {
@@ -48,29 +42,58 @@ async function animate_chart() {
         await sleep(1000 / fps);
     }
     plot_chart(xValues, yValues, chartCanvas, targetAmount, unitText, 1);
+}
 
+async function record_chart_animation() {
+    const canvas = chartCanvas;
+    const stream = canvas.captureStream(30); // 30 FPS
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+    const chunks = [];
+    recorder.ondataavailable = e => {
+        if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    const finishedRecording = new Promise(resolve => {
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+
+            // Automatically download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'chart-animation.webm';
+            a.click();
+
+            resolve();
+        };
+    });
+
+    recorder.start();
+    await animate_chart();
+    recorder.stop();
+    await finishedRecording;
 }
 
 function smoothstep(f) {
-  return 3 * f * f - 2 * f * f * f;
+    return 3 * f * f - 2 * f * f * f;
 }
 
-function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
+function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t = 0) {
+    const mainColor = "#FFF";
     const ctx = canvas.getContext("2d");
 
-    // Handle high-DPI screens
     const dpr = window.devicePixelRatio || 1;
     const styleWidth = canvas.clientWidth;
     const styleHeight = canvas.clientHeight;
 
     canvas.width = styleWidth * dpr;
     canvas.height = styleHeight * dpr;
-    ctx.scale(dpr, dpr); // scale all drawings
+    ctx.scale(dpr, dpr);
 
     const width = styleWidth;
     const height = styleHeight;
 
-    // Clear previous drawing
     ctx.clearRect(0, 0, width, height);
 
     const maxY = Math.max(...yValues.concat(targetAmount));
@@ -80,20 +103,12 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
     const xSpacing = (width - 2 * padding) / (xValues[xValues.length - 1] - xValues[0]);
     const yScale = (height - 2 * padding) / (maxY - minY);
 
-    
-    // Linear interpolation
-    // const maxX = minX + (Math.max(...xValues) - minX) * t; 
-
-    // Constant time between each point
     const N = xValues.length;
-    const scaledT = t * (N );  // scale t to [0, N - 1)
-    const maxXIndex = Math.floor(scaledT); // index of the left point
-    let f = scaledT - maxXIndex;         // fractional part between i and i+1
-    // f = smoothstep(f);
-    const maxX = xValues[maxXIndex] + f * (xValues[maxXIndex + 1] - xValues[maxXIndex]);    
+    const scaledT = t * (N);
+    const maxXIndex = Math.floor(scaledT);
+    let f = scaledT - maxXIndex;
+    const maxX = xValues[maxXIndex] + f * (xValues[maxXIndex + 1] - xValues[maxXIndex]);
 
-
-    // Background bars
     const yIncrement = 20;
     for (let y = minY; y < maxY; y += yIncrement) {
         ctx.strokeStyle = "lightgray";
@@ -106,27 +121,21 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
         ctx.stroke();
     }
 
-
-    // Line
     ctx.beginPath();
-    ctx.strokeStyle = "black";
+    ctx.strokeStyle = mainColor;
     ctx.lineWidth = 3;
-    for (let i=0;i<xValues.length;i++) {
+    for (let i = 0; i < xValues.length; i++) {
         const xVal = xValues[i];
         const x = padding + (xVal - xValues[0]) * xSpacing;
         const y = height - padding - (yValues[xValues.indexOf(xVal)] - minY) * yScale;
         if (xVal > maxX && i > 0) {
-            // Truncate line if point is beyond maxX
-            // Interpolate between the two points
-            const realgradient = (yValues[i] - yValues[i-1])/(xValues[i] - xValues[i-1]);
-            const predictedY   = realgradient * (maxX - xValues[i-1]) + yValues[i-1];
-            // Convert to on screen coordinates
+            const realgradient = (yValues[i] - yValues[i - 1]) / (xValues[i] - xValues[i - 1]);
+            const predictedY = realgradient * (maxX - xValues[i - 1]) + yValues[i - 1];
             const screenX = padding + (maxX - xValues[0]) * xSpacing;
             const screeny = height - padding - (predictedY - minY) * yScale;
             ctx.lineTo(screenX, screeny);
             break;
         } else {
-            // Regular draw
             if (xValues.indexOf(xVal) === 0) {
                 ctx.moveTo(x, y);
             } else {
@@ -136,8 +145,7 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
     }
     ctx.stroke();
 
-    // Goal weight
-    ctx.strokeStyle = "#000";
+    ctx.strokeStyle = mainColor;
     ctx.beginPath();
     ctx.setLineDash([5, 10]);
     const x = padding;
@@ -146,17 +154,15 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
     ctx.lineTo(width - padding, y);
     ctx.stroke();
 
-    // Text and dots
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = mainColor;
     for (const xVal of xValues) {
-        if (xVal >= maxX + 0.001) { // Only plots point after theyre visible (by t)
-            break;
-        }
+        if (xVal >= maxX + 0.001) break;
+
         let circleR = 8;
         let fontSize = 20;
         if (maxXIndex === xValues.indexOf(xVal)) {
-            fontSize = fontSize * f;
-            circleR = circleR * f;
+            fontSize *= f;
+            circleR *= f;
         }
 
         const x = padding + (xVal - xValues[0]) * xSpacing;
@@ -165,8 +171,9 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
         ctx.arc(x, y, circleR, 0, 2 * Math.PI);
         ctx.fill();
         ctx.font = fontSize + "px Arial";
-        ctx.fillText(`${yValues[xValues.indexOf(xVal)]} ${unit}`, x - 20, y - circleR*4);
+        ctx.fillText(`${yValues[xValues.indexOf(xVal)]} ${unit}`, x - 20, y - circleR * 4);
     }
 }
 
+// Initial static plot (optional)
 plot_chart([1, 2, 3, 4, 5], [110, 130, 150, 160, 170], chartCanvas, 260);

@@ -76,7 +76,7 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
     const maxY = Math.max(...yValues.concat(targetAmount));
     const minY = Math.min(...yValues);
     const minX = Math.min(...xValues);
-    const padding = 40;
+    const padding = 100;
     const xSpacing = (width - 2 * padding) / (xValues[xValues.length - 1] - xValues[0]);
     const yScale = (height - 2 * padding) / (maxY - minY);
 
@@ -102,7 +102,7 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
 
         const yScreen = height - padding - (y - minY) * yScale;
         ctx.moveTo(padding, yScreen);
-        ctx.lineTo(width, yScreen);
+        ctx.lineTo(width - padding, yScreen);
         ctx.stroke();
     }
 
@@ -143,7 +143,7 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
     const x = padding;
     const y = height - padding - (260 - minY) * yScale;
     ctx.moveTo(x, y);
-    ctx.lineTo(width, y);
+    ctx.lineTo(width - padding, y);
     ctx.stroke();
 
     // Text and dots
@@ -165,7 +165,7 @@ function plot_chart(xValues, yValues, canvas, targetAmount, unit = "kg", t=0) {
         ctx.arc(x, y, circleR, 0, 2 * Math.PI);
         ctx.fill();
         ctx.font = fontSize + "px Arial";
-        ctx.fillText(`${yValues[xValues.indexOf(xVal)]} ${unit}`, x - 10, y - circleR*4);
+        ctx.fillText(`${yValues[xValues.indexOf(xVal)]} ${unit}`, x - 20, y - circleR*4);
     }
 }
 
